@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --white: #f0ece4;
+    --dim: rgba(240,236,228,0.55);
+    --accent: #ff3c3c;
+    --accent2: #ffb347;
+    --bg-dark: #050508;
+  }
+
+  body {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-dark);
+    font-family: 'Space Mono', monospace;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ── Japanese night street SVG background ── */
+  .bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+  }
+
+  .bg svg {
+    width: 100%; height: 100%;
+    position: absolute; inset: 0;
+  }
+
+  /* Rain overlay */
+  .rain {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .rain span {
+    position: absolute;
+    top: -20px;
+    width: 1px;
+    background: linear-gradient(to bottom, transparent, rgba(180,200,255,0.25));
+    animation: fall linear infinite;
+  }
+
+  @keyframes fall {
+    to { transform: translateY(110vh); }
+  }
+
+  /* Noise grain */
+  .grain {
+    position: fixed;
+    inset: 0;
+    z-index: 2;
+    opacity: 0.035;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    animation: grain 0.5s steps(1) infinite;
+  }
+
+  @keyframes grain {
+    0%,100%{transform:translate(0,0)}
+    10%{transform:translate(-1%,-1%)}
+    20%{transform:translate(1%,1%)}
+    30%{transform:translate(-1%,1%)}
+    40%{transform:translate(1%,-1%)}
+    50%{transform:translate(-2%,0)}
+    60%{transform:translate(2%,0)}
+    70%{transform:translate(0,2%)}
+    80%{transform:translate(0,-2%)}
+    90%{transform:translate(-1%,2%)}
+  }
+
+  /* ── Main card ── */
+  .card {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 2.5rem 3rem 2rem;
+    background: rgba(5,5,8,0.62);
+    backdrop-filter: blur(18px) saturate(1.4);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px;
+    box-shadow: 0 0 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,60,60,0.05) inset;
+    min-width: 340px;
+  }
+
+  /* Mode tabs */
+  .tabs {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-bottom: 2rem;
+  }
+
+  .tab {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.9rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab:hover { color: var(--white); border-color: rgba(255,255,255,0.35); }
+
+  .tab.active {
+    background: var(--white);
+    color: #0a0a0f;
+    border-color: var(--white);
+    font-weight: 700;
+  }
+
+  /* Timer display */
+  .timer-wrap {
+    position: relative;
+    margin: 0.5rem 0 1.8rem;
+  }
+
+  .timer {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(5rem, 18vw, 7.5rem);
+    line-height: 1;
+    color: var(--white);
+    letter-spacing: 0.04em;
+    text-shadow:
+      0 0 40px rgba(255,255,255,0.15),
+      0 0 80px rgba(255,60,60,0.12);
+    transition: color 0.4s;
+    user-select: none;
+  }
+
+  .timer.urgent { color: var(--accent); text-shadow: 0 0 40px rgba(255,60,60,0.5); }
+
+  /* Progress ring */
+  .ring-wrap {
+    position: absolute;
+    inset: -14px;
+    pointer-events: none;
+  }
+
+  .ring-wrap svg {
+    width: 100%; height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .ring-bg { stroke: rgba(255,255,255,0.05); }
+  .ring-fg {
+    stroke: var(--white);
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s linear, stroke 0.4s;
+    filter: drop-shadow(0 0 6px rgba(255,255,255,0.4));
+  }
+  .ring-fg.urgent { stroke: var(--accent); filter: drop-shadow(0 0 8px rgba(255,60,60,0.7)); }
+
+  /* Mode label */
+  .mode-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 1.5rem;
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+  }
+
+  .btn-start {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    padding: 0.7rem 2.2rem;
+    border-radius: 999px;
+    border: none;
+    background: var(--white);
+    color: #0a0a0f;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.2s;
+    box-shadow: 0 0 20px rgba(255,255,255,0.15);
+  }
+
+  .btn-start:hover {
+    transform: scale(1.04);
+    box-shadow: 0 0 30px rgba(255,255,255,0.25);
+  }
+
+  .btn-start:active { transform: scale(0.97); }
+  .btn-start.running { background: var(--accent); color: #fff; box-shadow: 0 0 20px rgba(255,60,60,0.3); }
+
+  .btn-icon {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem;
+    transition: all 0.2s;
+  }
+
+  .btn-icon:hover { color: var(--white); border-color: rgba(255,255,255,0.4); }
+
+  /* Session dots */
+  .sessions {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: center;
+    margin-top: 1.6rem;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    transition: background 0.3s;
+  }
+
+  .dot.done { background: var(--white); box-shadow: 0 0 6px rgba(255,255,255,0.5); }
+  .dot.current { background: var(--accent); box-shadow: 0 0 6px rgba(255,60,60,0.7); animation: pulse-dot 1s ease-in-out infinite; }
+
+  @keyframes pulse-dot {
+    0%,100%{ transform: scale(1); }
+    50%{ transform: scale(1.5); }
+  }
+
+  /* Settings panel */
+  .settings-panel {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%; transform: translateX(-50%);
+    background: rgba(10,10,16,0.95);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 1rem 1.4rem;
+    min-width: 220px;
+    z-index: 20;
+    text-align: left;
+  }
+
+  .settings-panel.open { display: block; }
+
+  .settings-panel h4 {
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 0.8rem;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.6rem;
+    gap: 1rem;
+  }
+
+  .setting-row label {
+    font-size: 0.65rem;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+  }
+
+  .setting-row input[type=number] {
+    width: 52px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 4px;
+    color: var(--white);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.4rem;
+    text-align: center;
+  }
+
+  .setting-row input:focus { outline: none; border-color: rgba(255,255,255,0.4); }
+
+  .settings-apply {
+    width: 100%;
+    margin-top: 0.6rem;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.35rem;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.2);
+    background: transparent;
+    color: var(--white);
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .settings-apply:hover { background: rgba(255,255,255,0.08); }
+
+  /* Neon sign flicker on street */
+  @keyframes flicker {
+    0%,19%,21%,23%,25%,54%,56%,100%{ opacity:1; }
+    20%,22%,24%,55%{ opacity:0.3; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Background: Japanese Night Street ── -->
+<div class="bg">
+  <svg viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="sky" cx="50%" cy="0%" r="80%">
+        <stop offset="0%" stop-color="#0d0d1f"/>
+        <stop offset="100%" stop-color="#020205"/>
+      </radialGradient>
+      <radialGradient id="lamp1" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ffe8a0" stop-opacity="0.9"/>
+        <stop offset="100%" stop-color="#ffe8a0" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="lamp2" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ff9060" stop-opacity="0.7"/>
+        <stop offset="100%" stop-color="#ff9060" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="neon_r" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#ff2255" stop-opacity="0.8"/>
+        <stop offset="100%" stop-color="#ff2255" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="neon_b" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#00aaff" stop-opacity="0.7"/>
+        <stop offset="100%" stop-color="#00aaff" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="blur4"><feGaussianBlur stdDeviation="4"/></filter>
+      <filter id="blur10"><feGaussianBlur stdDeviation="10"/></filter>
+      <filter id="blur2"><feGaussianBlur stdDeviation="2"/></filter>
+    </defs>
+
+    <!-- Sky -->
+    <rect width="1200" height="700" fill="url(#sky)"/>
+
+    <!-- Far buildings silhouette -->
+    <g fill="#080810">
+      <rect x="0" y="220" width="90" height="480"/>
+      <rect x="80" y="180" width="60" height="520"/>
+      <rect x="130" y="240" width="80" height="460"/>
+      <rect x="200" y="160" width="50" height="540"/>
+      <rect x="240" y="210" width="70" height="490"/>
+      <rect x="900" y="190" width="80" height="510"/>
+      <rect x="970" y="230" width="60" height="470"/>
+      <rect x="1020" y="170" width="90" height="530"/>
+      <rect x="1100" y="200" width="100" height="500"/>
+    </g>
+
+    <!-- Building windows far -->
+    <g fill="#ffe8a0" opacity="0.25">
+      <rect x="10" y="230" width="6" height="4"/><rect x="22" y="230" width="6" height="4"/>
+      <rect x="34" y="230" width="6" height="4"/><rect x="10" y="242" width="6" height="4"/>
+      <rect x="22" y="242" width="6" height="4"/><rect x="34" y="242" width="6" height="4"/>
+      <rect x="10" y="254" width="6" height="4"/><rect x="34" y="254" width="6" height="4"/>
+      <rect x="92" y="192" width="5" height="4"/><rect x="102" y="192" width="5" height="4"/>
+      <rect x="92" y="204" width="5" height="4"/>
+      <rect x="212" y="172" width="5" height="4"/><rect x="222" y="172" width="5" height="4"/>
+      <rect x="212" y="184" width="5" height="4"/><rect x="222" y="184" width="5" height="4"/>
+      <rect x="910" y="200" width="6" height="4"/><rect x="922" y="200" width="6" height="4"/>
+      <rect x="910" y="214" width="6" height="4"/>
+      <rect x="1030" y="182" width="6" height="4"/><rect x="1042" y="182" width="6" height="4"/>
+      <rect x="1030" y="196" width="6" height="4"/><rect x="1042" y="196" width="6" height="4"/>
+    </g>
+
+    <!-- Mid buildings -->
+    <g fill="#0c0c18">
+      <rect x="300" y="280" width="120" height="420"/>
+      <rect x="410" y="260" width="80" height="440"/>
+      <rect x="480" y="300" width="240" height="400"/>
+      <rect x="700" y="270" width="100" height="430"/>
+      <rect x="790" y="250" width="130" height="450"/>
+    </g>
+
+    <!-- Shop building left (main) -->
+    <g>
+      <!-- Building -->
+      <rect x="310" y="290" width="100" height="410" fill="#111120"/>
+      <!-- Shop front ground floor -->
+      <rect x="310" y="460" width="100" height="100" fill="#1a1a2e"/>
+      <!-- Shutters/door -->
+      <rect x="330" y="470" width="60" height="80" fill="#0d0d1e"/>
+      <line x1="330" y1="480" x2="390" y2="480" stroke="#252540" stroke-width="1"/>
+      <line x1="330" y1="492" x2="390" y2="492" stroke="#252540" stroke-width="1"/>
+      <line x1="330" y1="504" x2="390" y2="504" stroke="#252540" stroke-width="1"/>
+      <line x1="330" y1="516" x2="390" y2="516" stroke="#252540" stroke-width="1"/>
+      <!-- Awning -->
+      <path d="M308 462 L412 462 L405 478 L315 478 Z" fill="#c0392b" opacity="0.8"/>
+      <line x1="320" y1="462" x2="316" y2="478" stroke="#922b21" stroke-width="1"/>
+      <line x1="340" y1="462" x2="336" y2="478" stroke="#922b21" stroke-width="1"/>
+      <line x1="360" y1="462" x2="357" y2="478" stroke="#922b21" stroke-width="1"/>
+      <line x1="380" y1="462" x2="377" y2="478" stroke="#922b21" stroke-width="1"/>
+      <line x1="400" y1="462" x2="397" y2="478" stroke="#922b21" stroke-width="1"/>
+    </g>
+
+    <!-- Neon sign red glow -->
+    <ellipse cx="360" cy="380" rx="60" ry="30" fill="url(#neon_r)" filter="url(#blur10)" opacity="0.8" style="animation:flicker 4s infinite"/>
+    <!-- Neon sign shape -->
+    <g style="animation:flicker 4s infinite">
+      <rect x="325" y="355" width="70" height="45" rx="3" fill="none" stroke="#ff2255" stroke-width="2" opacity="0.9"/>
+      <text x="360" y="374" text-anchor="middle" font-family="serif" font-size="9" fill="#ff6688" opacity="0.95">ラーメン</text>
+      <text x="360" y="388" text-anchor="middle" font-family="serif" font-size="7" fill="#ff4466" opacity="0.9">RAMEN</text>
+    </g>
+
+    <!-- Right building with blue neon -->
+    <g>
+      <rect x="800" y="260" width="110" height="440" fill="#0e0e1c"/>
+      <rect x="800" y="460" width="110" height="100" fill="#181830"/>
+      <!-- Glass storefront -->
+      <rect x="812" y="468" width="86" height="82" fill="#0a1520" opacity="0.9"/>
+      <line x1="855" y1="468" x2="855" y2="550" stroke="#1a3050" stroke-width="1"/>
+      <!-- Blue neon glow -->
+      <ellipse cx="855" cy="360" rx="55" ry="25" fill="url(#neon_b)" filter="url(#blur10)" opacity="0.9"/>
+      <g style="animation:flicker 6s 1s infinite">
+        <rect x="822" y="340" width="66" height="40" rx="3" fill="none" stroke="#00aaff" stroke-width="1.5" opacity="0.9"/>
+        <text x="855" y="358" text-anchor="middle" font-family="serif" font-size="9" fill="#44ccff" opacity="0.9">居酒屋</text>
+        <text x="855" y="372" text-anchor="middle" font-family="serif" font-size="7" fill="#22aaff" opacity="0.85">IZAKAYA</text>
+      </g>
+    </g>
+
+    <!-- Street lamps -->
+    <!-- Left lamp -->
+    <g>
+      <line x1="250" y1="340" x2="250" y2="560" stroke="#3a3a4a" stroke-width="3"/>
+      <path d="M250 340 Q270 330 280 340" fill="none" stroke="#3a3a4a" stroke-width="3"/>
+      <circle cx="280" cy="340" r="5" fill="#ffe8a0"/>
+      <ellipse cx="280" cy="340" rx="80" ry="80" fill="url(#lamp1)" filter="url(#blur10)" opacity="0.6"/>
+    </g>
+    <!-- Right lamp -->
+    <g>
+      <line x1="950" y1="330" x2="950" y2="560" stroke="#3a3a4a" stroke-width="3"/>
+      <path d="M950 330 Q930 320 920 330" fill="none" stroke="#3a3a4a" stroke-width="3"/>
+      <circle cx="920" cy="330" r="5" fill="#ffe8a0"/>
+      <ellipse cx="920" cy="330" rx="80" ry="80" fill="url(#lamp1)" filter="url(#blur10)" opacity="0.6"/>
+    </g>
+
+    <!-- Hanging lanterns / signs between buildings -->
+    <g>
+      <line x1="410" y1="300" x2="700" y2="310" stroke="#2a2a3a" stroke-width="1" stroke-dasharray="3,6"/>
+      <!-- Lantern 1 -->
+      <ellipse cx="480" cy="320" rx="10" ry="14" fill="#cc2200" opacity="0.85"/>
+      <rect x="477" y="306" width="6" height="4" fill="#aa1a00" opacity="0.85"/>
+      <ellipse cx="480" cy="320" rx="10" ry="14" fill="none" stroke="#ff4422" stroke-width="0.5" opacity="0.5"/>
+      <ellipse cx="480" cy="320" rx="12" ry="16" fill="url(#lamp2)" filter="url(#blur4)" opacity="0.5"/>
+      <!-- Lantern 2 -->
+      <ellipse cx="590" cy="318" rx="10" ry="14" fill="#cc2200" opacity="0.85"/>
+      <rect x="587" y="304" width="6" height="4" fill="#aa1a00" opacity="0.85"/>
+      <ellipse cx="590" cy="318" rx="12" ry="16" fill="url(#lamp2)" filter="url(#blur4)" opacity="0.5"/>
+      <!-- Lantern 3 -->
+      <ellipse cx="650" cy="322" rx="10" ry="14" fill="#cc2200" opacity="0.85"/>
+      <rect x="647" y="308" width="6" height="4" fill="#aa1a00" opacity="0.85"/>
+      <ellipse cx="650" cy="322" rx="12" ry="16" fill="url(#lamp2)" filter="url(#blur4)" opacity="0.5"/>
+    </g>
+
+    <!-- Ground / road -->
+    <rect x="0" y="555" width="1200" height="145" fill="#080810"/>
+    <!-- Road reflection -->
+    <rect x="0" y="555" width="1200" height="4" fill="#111125"/>
+    <!-- Wet ground reflections -->
+    <ellipse cx="360" cy="575" rx="50" ry="8" fill="#ff2255" opacity="0.12" filter="url(#blur4)"/>
+    <ellipse cx="855" cy="575" rx="45" ry="8" fill="#00aaff" opacity="0.12" filter="url(#blur4)"/>
+    <ellipse cx="280" cy="580" rx="40" ry="6" fill="#ffe8a0" opacity="0.1" filter="url(#blur4)"/>
+    <ellipse cx="920" cy="580" rx="40" ry="6" fill="#ffe8a0" opacity="0.1" filter="url(#blur4)"/>
+    <!-- Road lines -->
+    <line x1="600" y1="560" x2="600" y2="700" stroke="#1a1a28" stroke-width="2" stroke-dasharray="20,15"/>
+
+    <!-- Sidewalk -->
+    <rect x="0" y="555" width="1200" height="12" fill="#0d0d1e"/>
+
+    <!-- Vending machine -->
+    <g>
+      <rect x="680" y="490" width="30" height="65" rx="2" fill="#1a1a2e"/>
+      <rect x="682" y="493" width="26" height="35" fill="#0a1520"/>
+      <rect x="683" y="494" width="8" height="8" fill="#ff2222" opacity="0.8"/>
+      <rect x="693" y="494" width="8" height="8" fill="#2266ff" opacity="0.8"/>
+      <rect x="683" y="505" width="8" height="8" fill="#22cc44" opacity="0.7"/>
+      <rect x="693" y="505" width="8" height="8" fill="#ffcc00" opacity="0.7"/>
+      <rect x="683" y="516" width="8" height="8" fill="#ff4488" opacity="0.8"/>
+      <rect x="693" y="516" width="8" height="8" fill="#00ccff" opacity="0.7"/>
+      <!-- Glow -->
+      <ellipse cx="695" cy="510" rx="25" ry="20" fill="#3344ff" opacity="0.1" filter="url(#blur4)"/>
+    </g>
+
+    <!-- Wires across top -->
+    <path d="M0 120 Q200 140 400 125 Q600 110 800 130 Q1000 145 1200 120" fill="none" stroke="#1a1a2a" stroke-width="1.5"/>
+    <path d="M0 140 Q300 155 600 142 Q900 130 1200 145" fill="none" stroke="#1a1a2a" stroke-width="1"/>
+
+    <!-- Fog / atmosphere overlay -->
+    <rect width="1200" height="700" fill="url(#sky)" opacity="0.3"/>
+  </svg>
+</div>
+
+<!-- Rain -->
+<div class="rain" id="rain"></div>
+<div class="grain"></div>
+
+<!-- ── App ── -->
+<div class="card">
+  <div class="tabs">
+    <button class="tab active" data-mode="pomodoro">Pomodoro</button>
+    <button class="tab" data-mode="short">Short Break</button>
+    <button class="tab" data-mode="long">Long Break</button>
+  </div>
+
+  <div class="mode-label" id="modeLabel">Focus Session</div>
+
+  <div class="timer-wrap">
+    <svg class="ring-wrap" viewBox="0 0 220 80" style="position:absolute;top:-18px;left:-18px;right:-18px;bottom:-18px;width:calc(100% + 36px);height:calc(100% + 36px);pointer-events:none;">
+    </svg>
+    <div class="timer" id="timer">25:00</div>
+  </div>
+
+  <div class="controls" style="position:relative;">
+    <button class="btn-start" id="btnStart">Start</button>
+    <button class="btn-icon" id="btnReset" title="Reset">↺</button>
+    <div style="position:relative;">
+      <button class="btn-icon" id="btnSettings" title="Settings">⚙</button>
+      <div class="settings-panel" id="settingsPanel">
+        <h4>Timer Settings (min)</h4>
+        <div class="setting-row">
+          <label>Pomodoro</label>
+          <input type="number" id="setPomo" value="25" min="1" max="90"/>
+        </div>
+        <div class="setting-row">
+          <label>Short Break</label>
+          <input type="number" id="setShort" value="5" min="1" max="30"/>
+        </div>
+        <div class="setting-row">
+          <label>Long Break</label>
+          <input type="number" id="setLong" value="15" min="1" max="60"/>
+        </div>
+        <button class="settings-apply" id="applySettings">Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sessions" id="sessions"></div>
+</div>
+
+<script>
+// ── Rain ──
+const rainEl = document.getElementById('rain');
+for (let i = 0; i < 60; i++) {
+  const s = document.createElement('span');
+  const h = Math.random() * 60 + 20;
+  s.style.cssText = `left:${Math.random()*100}%;height:${h}px;opacity:${Math.random()*0.3+0.05};animation-duration:${Math.random()*0.8+0.4}s;animation-delay:${Math.random()*2}s`;
+  rainEl.appendChild(s);
+}
+
+// ── Audio ──
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playTick() {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.connect(g); g.connect(ctx.destination);
+  o.frequency.value = 1200;
+  o.type = 'sine';
+  g.gain.setValueAtTime(0.04, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.04);
+  o.start(); o.stop(ctx.currentTime + 0.04);
+}
+
+function playAlarm() {
+  const notes = [880, 1100, 880, 1100];
+  notes.forEach((freq, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = freq;
+    o.type = 'triangle';
+    const t = ctx.currentTime + i * 0.25;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.3, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+    o.start(t); o.stop(t + 0.22);
+  });
+}
+
+// ── State ──
+const MODES = { pomodoro: 25, short: 5, long: 15 };
+const LABELS = { pomodoro: 'Focus Session', short: 'Short Break', long: 'Long Break' };
+let settings = { pomodoro: 25, short: 5, long: 15 };
+let mode = 'pomodoro';
+let total = 25 * 60;
+let remaining = total;
+let running = false;
+let interval = null;
+let sessions = 0;
+const MAX_SESSIONS = 4;
+
+const timerEl = document.getElementById('timer');
+const btnStart = document.getElementById('btnStart');
+const btnReset = document.getElementById('btnReset');
+const btnSettings = document.getElementById('btnSettings');
+const settingsPanel = document.getElementById('settingsPanel');
+const modeLabel = document.getElementById('modeLabel');
+const sessionsEl = document.getElementById('sessions');
+
+function fmt(s) {
+  const m = Math.floor(s / 60);
+  const ss = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+}
+
+function updateDisplay() {
+  timerEl.textContent = fmt(remaining);
+  const urgent = remaining <= 60 && running;
+  timerEl.classList.toggle('urgent', urgent);
+  // Update title
+  document.title = `${fmt(remaining)} — Pomodoro`;
+}
+
+function renderSessions() {
+  sessionsEl.innerHTML = '';
+  for (let i = 0; i < MAX_SESSIONS; i++) {
+    const d = document.createElement('div');
+    d.className = 'dot' + (i < sessions ? ' done' : (i === sessions && running && mode === 'pomodoro' ? ' current' : ''));
+    sessionsEl.appendChild(d);
+  }
+}
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.mode === m));
+  total = settings[m] * 60;
+  remaining = total;
+  running = false;
+  clearInterval(interval);
+  btnStart.textContent = 'Start';
+  btnStart.classList.remove('running');
+  modeLabel.textContent = LABELS[m];
+  updateDisplay();
+  renderSessions();
+}
+
+function toggle() {
+  if (ctx.state === 'suspended') ctx.resume();
+  running = !running;
+  if (running) {
+    btnStart.textContent = 'Pause';
+    btnStart.classList.add('running');
+    interval = setInterval(tick, 1000);
+  } else {
+    btnStart.textContent = 'Resume';
+    btnStart.classList.remove('running');
+    clearInterval(interval);
+  }
+  renderSessions();
+}
+
+function tick() {
+  playTick();
+  remaining--;
+  updateDisplay();
+  renderSessions();
+  if (remaining <= 0) {
+    clearInterval(interval);
+    running = false;
+    btnStart.textContent = 'Start';
+    btnStart.classList.remove('running');
+    playAlarm();
+    if (mode === 'pomodoro') {
+      sessions = Math.min(sessions + 1, MAX_SESSIONS);
+      if (sessions >= MAX_SESSIONS) sessions = 0;
+    }
+    remaining = total;
+    updateDisplay();
+    renderSessions();
+  }
+}
+
+function reset() {
+  clearInterval(interval);
+  running = false;
+  remaining = total;
+  btnStart.textContent = 'Start';
+  btnStart.classList.remove('running');
+  timerEl.classList.remove('urgent');
+  updateDisplay();
+  renderSessions();
+}
+
+// Events
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => { reset(); setMode(t.dataset.mode); }));
+btnStart.addEventListener('click', toggle);
+btnReset.addEventListener('click', reset);
+btnSettings.addEventListener('click', (e) => {
+  e.stopPropagation();
+  settingsPanel.classList.toggle('open');
+});
+document.addEventListener('click', () => settingsPanel.classList.remove('open'));
+settingsPanel.addEventListener('click', e => e.stopPropagation());
+
+document.getElementById('applySettings').addEventListener('click', () => {
+  settings.pomodoro = parseInt(document.getElementById('setPomo').value) || 25;
+  settings.short = parseInt(document.getElementById('setShort').value) || 5;
+  settings.long = parseInt(document.getElementById('setLong').value) || 15;
+  settingsPanel.classList.remove('open');
+  setMode(mode);
+});
+
+// Init
+setMode('pomodoro');
+renderSessions();
+</script>
+</body>
+</html>
