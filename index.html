@@ -9,11 +9,11 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --white: #f0ece4;
-    --dim: rgba(240,236,228,0.55);
-    --accent: #ff3c3c;
-    --accent2: #ffb347;
-    --bg-dark: #050508;
+    --white: #f5ede0;
+    --dim: rgba(245,237,224,0.55);
+    --accent: #e8724a;
+    --accent2: #f0a855;
+    --bg-dark: #1a100a;
   }
 
   body {
@@ -27,16 +27,12 @@
     position: relative;
   }
 
-  /* ── Japanese night street SVG background ── */
+  /* ── GIF background ── */
   .bg {
     position: fixed;
     inset: 0;
     z-index: 0;
-  }
-
-  .bg svg {
-    width: 100%; height: 100%;
-    position: absolute; inset: 0;
+    background: url('background_pomodoro.gif') center center / cover no-repeat;
   }
 
   /* Rain overlay */
@@ -90,11 +86,11 @@
     z-index: 10;
     text-align: center;
     padding: 2.5rem 3rem 2rem;
-    background: rgba(5,5,8,0.62);
-    backdrop-filter: blur(18px) saturate(1.4);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(18,10,4,0.58);
+    backdrop-filter: blur(16px) saturate(1.2);
+    border: 1px solid rgba(245,220,180,0.12);
     border-radius: 6px;
-    box-shadow: 0 0 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,60,60,0.05) inset;
+    box-shadow: 0 0 80px rgba(0,0,0,0.6), 0 8px 32px rgba(232,114,74,0.08) inset;
     min-width: 340px;
   }
 
@@ -329,9 +325,9 @@
 </head>
 <body>
 
-<!-- ── Background: Japanese Night Street ── -->
+<!-- ── Background: GIF ── -->
 <div class="bg">
-  <svg viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <svg viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" style="display:none">
     <defs>
       <radialGradient id="sky" cx="50%" cy="0%" r="80%">
         <stop offset="0%" stop-color="#0d0d1f"/>
@@ -517,9 +513,8 @@
   </svg>
 </div>
 
-<!-- Rain -->
-<div class="rain" id="rain"></div>
-<div class="grain"></div>
+<!-- Warm overlay -->
+<div style="position:fixed;inset:0;z-index:1;background:rgba(20,12,5,0.32);pointer-events:none;"></div>
 
 <!-- ── App ── -->
 <div class="card">
@@ -565,15 +560,6 @@
 </div>
 
 <script>
-// ── Rain ──
-const rainEl = document.getElementById('rain');
-for (let i = 0; i < 60; i++) {
-  const s = document.createElement('span');
-  const h = Math.random() * 60 + 20;
-  s.style.cssText = `left:${Math.random()*100}%;height:${h}px;opacity:${Math.random()*0.3+0.05};animation-duration:${Math.random()*0.8+0.4}s;animation-delay:${Math.random()*2}s`;
-  rainEl.appendChild(s);
-}
-
 // ── Audio ──
 const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
