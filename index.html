@@ -21,18 +21,51 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--bg-dark);
+    background: #1a100a;
     font-family: 'Space Mono', monospace;
     overflow: hidden;
     position: relative;
   }
 
-  /* ── GIF background ── */
+  /* ── GIF background (fullscreen, hidden by default) ── */
   .bg {
-    position: fixed;
+    display: none;
+  }
+
+  /* ── Main card ── */
+  .card {
+    position: relative;
+    z-index: 10;
+    text-align: center;
+    padding: 2.5rem 3rem 2rem;
+    background: transparent;
+    border: 1px solid rgba(245,220,180,0.15);
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+    min-width: 340px;
+    overflow: hidden;
+  }
+
+  /* GIF inside card */
+  .card-bg {
+    position: absolute;
     inset: 0;
     z-index: 0;
     background: url('background_pomodoro.gif') center center / cover no-repeat;
+  }
+
+  /* Dark overlay on top of GIF */
+  .card-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: rgba(15, 8, 3, 0.52);
+  }
+
+  /* All card content must be above overlay */
+  .card > *:not(.card-bg):not(.card-overlay) {
+    position: relative;
+    z-index: 2;
   }
 
   /* Rain overlay */
@@ -513,11 +546,11 @@
   </svg>
 </div>
 
-<!-- Warm overlay -->
-<div style="position:fixed;inset:0;z-index:1;background:rgba(20,12,5,0.32);pointer-events:none;"></div>
 
 <!-- ── App ── -->
 <div class="card">
+  <div class="card-bg"></div>
+  <div class="card-overlay"></div>
   <div class="tabs">
     <button class="tab active" data-mode="pomodoro">Pomodoro</button>
     <button class="tab" data-mode="short">Short Break</button>
